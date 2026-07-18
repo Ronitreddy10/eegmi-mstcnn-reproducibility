@@ -29,6 +29,19 @@ The completed analysis contains 13 experiment definitions and 130 outer-fold res
 
 The 19.94 M result is a seed-42 capacity finding. It is not presented as a three-seed or class-balanced result.
 
+### Exact capacity controls
+
+The capacity ablation uses compound width/pooling variants of the same four-stream MST-CNN design. It is **not** a classifier-only ablation.
+
+| Variant | Stream maximum channels | Stream output channels | Adaptive-pool length | Classifier hidden width | Exact parameters |
+|---|---:|---:|---:|---:|---:|
+| 0.55 M | 48 | 24 | 12 | 128 | 551,144 |
+| 4.96 M | 128 | 48 | 32 | 450 | 4,956,614 |
+| 19.94 M | 192 | 64 | 48 | 1,250 | 19,936,294 |
+| 83.08 M | 256 | 64 | 48 | 6,146 | 83,080,458 |
+
+Kernel sizes, the four-stream topology, two ConvBlocks per stream, adaptive pooling, feature fusion, dropout, and the four-class output remain common. The controlled channel widths, pooled feature dimension, and classifier width determine the capacity points.
+
 ## Key checked results
 
 At seed 42, the 19.94 M MST-CNN reached `70.23 ± 1.72%` accuracy, `58.27 ± 2.18%` balanced accuracy, and `59.68 ± 2.02%` macro-F1 over the 10 outer folds. Its performance was statistically comparable with the 83.08 M configuration while using 76.0% fewer parameters, 40.4% fewer FLOPs, and 30.1% lower measured batch-1 latency.
@@ -53,10 +66,16 @@ Across the three 83.08 M seeds, effective-number weighting improved balanced acc
 │   ├── run_robustness_study.py
 │   ├── run_complete_batch.py
 │   ├── run_grid.py
-│   └── summarize_grid.py
+│   ├── summarize_grid.py
+│   ├── analyze_results.py
+│   └── analyze_training_diagnostics.py
 ├── tests/
 │   └── smoke_test.py
 └── analysis_outputs/
+    ├── reviewer_safe_13_results_export.zip
+    ├── figure4_capacity_cost.png
+    ├── figure5_class_recall.png
+    └── figure_s1_training_diagnostics.png
 ```
 
 ## Dataset
@@ -108,6 +127,18 @@ Aggregate completed jobs:
 python src/summarize_grid.py --results robustness_results
 ```
 
+Regenerate the checked manuscript statistics and figures directly from the completed export:
+
+```bash
+python src/analyze_results.py \
+  --archive analysis_outputs/reviewer_safe_13_results_export.zip \
+  --output-dir reproduced_analysis
+
+python src/analyze_training_diagnostics.py \
+  --archive analysis_outputs/reviewer_safe_13_results_export.zip \
+  --output-dir reproduced_analysis
+```
+
 ## Corrected checkpoint protocol
 
 For every outer fold:
@@ -128,7 +159,12 @@ Every fold stores subject IDs, random seed, loss condition, class weights, selec
 - `performance_rows.csv`: checked manuscript table rows.
 - `manuscript_results.json`: consolidated numerical results and paired tests.
 - `training_diagnostics_summary.json`: best-checkpoint versus final-epoch diagnostics.
+- `figure4_capacity_cost.png`: capacity-performance and computational-cost comparison.
+- `figure5_class_recall.png`: three-seed per-class recall comparison.
 - `figure_s1_training_diagnostics.png`: checkpoint-selection curves and epoch distributions.
+- `reviewer_safe_13_results_export.zip`: the checked 13-experiment, 130-fold Kaggle result archive used to regenerate the statistics and figures.
+
+[`analysis_outputs/README.md`](analysis_outputs/README.md) records the completed archive checksum, fold counts, validation checks, and the provenance of the committed outputs.
 
 ## Methodological record
 

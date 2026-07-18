@@ -35,6 +35,10 @@ def main():
         "mstcnn_5m": 4_956_614,
         "mstcnn_20m": 19_936_294,
         "mstcnn_83m": 83_080_458,
+        "eegnet": 3_412,
+        "shallowconvnet": 109_404,
+        "deepconvnet1d": 1_062_276,
+        "resnet1d": 1_949_316,
     }
     for name, count in expected.items():
         model = study.build_model(name, 4, 0.5, device)
