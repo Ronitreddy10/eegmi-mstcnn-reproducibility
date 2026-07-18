@@ -1,0 +1,11 @@
+[
+  {"name": "capacity_0_5m_none_s42", "model": "mstcnn_0_5m", "imbalance": "none", "seed": 42},
+  {"name": "capacity_5m_none_s42", "model": "mstcnn_5m", "imbalance": "none", "seed": 42},
+  {"name": "capacity_20m_none_s42", "model": "mstcnn_20m", "imbalance": "none", "seed": 42},
+  {"name": "capacity_83m_none_s42", "model": "mstcnn_83m", "imbalance": "none", "seed": 42},
+  {"name": "imbalance_83m_effective_ce_s42", "model": "mstcnn_83m", "imbalance": "effective_ce", "seed": 42},
+  {"name": "imbalance_83m_focal_s42", "model": "mstcnn_83m", "imbalance": "focal", "seed": 42},
+  {"name": "imbalance_83m_oversample_s42", "model": "mstcnn_83m", "imbalance": "oversample", "seed": 42},
+  {"name": "baseline_deepconvnet1d_effective_ce_s42", "model": "deepconvnet1d", "imbalance": "effective_ce", "seed": 42},
+  {"name": "baseline_resnet1d_effective_ce_s42", "model": "resnet1d", "imbalance": "effective_ce", "seed": 42}
+]

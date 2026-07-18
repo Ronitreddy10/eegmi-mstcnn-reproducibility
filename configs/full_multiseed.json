@@ -1,0 +1,14 @@
+[
+  {"name": "capacity_0_5m_none", "model": "mstcnn_0_5m", "imbalance": "none", "seeds": [42, 123, 2026]},
+  {"name": "capacity_5m_none", "model": "mstcnn_5m", "imbalance": "none", "seeds": [42, 123, 2026]},
+  {"name": "capacity_20m_none", "model": "mstcnn_20m", "imbalance": "none", "seeds": [42, 123, 2026]},
+  {"name": "capacity_83m_none", "model": "mstcnn_83m", "imbalance": "none", "seeds": [42, 123, 2026]},
+  {"name": "imbalance_83m_effective_ce", "model": "mstcnn_83m", "imbalance": "effective_ce", "seeds": [42, 123, 2026]},
+  {"name": "imbalance_83m_focal", "model": "mstcnn_83m", "imbalance": "focal", "seeds": [42, 123, 2026]},
+  {"name": "imbalance_83m_effective_focal", "model": "mstcnn_83m", "imbalance": "effective_focal", "seeds": [42, 123, 2026]},
+  {"name": "imbalance_83m_oversample", "model": "mstcnn_83m", "imbalance": "oversample", "seeds": [42, 123, 2026]},
+  {"name": "baseline_eegnet_effective_ce", "model": "eegnet", "imbalance": "effective_ce", "seeds": [42, 123, 2026]},
+  {"name": "baseline_shallowconvnet_effective_ce", "model": "shallowconvnet", "imbalance": "effective_ce", "seeds": [42, 123, 2026]},
+  {"name": "baseline_deepconvnet1d_effective_ce", "model": "deepconvnet1d", "imbalance": "effective_ce", "seeds": [42, 123, 2026]},
+  {"name": "baseline_resnet1d_effective_ce", "model": "resnet1d", "imbalance": "effective_ce", "seeds": [42, 123, 2026]}
+]
