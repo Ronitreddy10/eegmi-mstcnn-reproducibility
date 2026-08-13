@@ -23,6 +23,21 @@ CAPACITIES = {
     "20 M": "capacity_20m_unweighted",
     "83 M": "main_83m_unweighted_s42",
 }
+# Exact 641-sample FLOP counts (FLOPs = 2 x MACs) from the public profiler.
+# The stored performance archive predates the clarified sample-count reporting;
+# its fold metrics are unchanged, while these deterministic compute counts use
+# the actual MNE tensor length.
+FLOPS_641 = {
+    "capacity_0_5m_unweighted": 396_159_616,
+    "capacity_5m_unweighted": 2_039_066_640,
+    "capacity_20m_unweighted": 4_221_060_880,
+    "main_83m_unweighted_s42": 7_078_550_544,
+    "balanced_83m_effective_ce_s42": 7_078_550_544,
+    "baseline_eegnet_effective_ce": 43_556_352,
+    "baseline_shallowconvnet_effective_ce": 205_349_440,
+    "baseline_deepconvnet1d_effective_ce": 398_696_448,
+    "baseline_resnet1d_effective_ce": 585_852_928,
+}
 BASELINES = {
     "EEGNet": "baseline_eegnet_effective_ce",
     "ShallowConvNet": "baseline_shallowconvnet_effective_ce",
@@ -184,7 +199,7 @@ def performance_rows(summaries):
         rows.append({
             "model": label,
             "parameters": summary["compute"]["parameters"],
-            "gflops": summary["compute"]["flops_per_sample_2x_macs"] / 1e9,
+            "gflops": FLOPS_641[job] / 1e9,
             "latency_ms": summary["compute"]["latency_ms_batch1_mean"],
             **{
                 metric: (summary["aggregate"][metric]["mean"] * 100, summary["aggregate"][metric]["std"] * 100)
@@ -221,7 +236,7 @@ def make_figures(output, rows, seed):
     axes[1].set_xlabel("Trainable parameters (million; log scale)"); axes[1].set_ylabel("GFLOPs per sample", color="#7a3e9d")
     right.set_ylabel("Batch-1 latency (ms)", color="#b33a3a"); axes[1].grid(axis="y", alpha=0.25); axes[1].set_title("(b) Computational cost")
     handles = axes[1].lines + right.lines; axes[1].legend(handles, [h.get_label() for h in handles], frameon=False, fontsize=9, loc="upper left")
-    fig.tight_layout(); fig.savefig(output / "figure4_capacity_cost.png", dpi=300, bbox_inches="tight"); plt.close(fig)
+    fig.tight_layout(); fig.savefig(output / "supplementary_figure_s2_capacity_cost.png", dpi=300, bbox_inches="tight"); plt.close(fig)
 
     classes, x, width = ["0 Rest", "1 Left", "2 Right", "3 Feet"], np.arange(4), 0.36
     fig, ax = plt.subplots(figsize=(8.8, 4.4))
@@ -231,7 +246,7 @@ def make_figures(output, rows, seed):
         ax.bar(x + offset, means, width, yerr=sds, capsize=4, label=mode, color=color, edgecolor="white", linewidth=0.7)
     ax.set_xticks(x, classes); ax.set_ylabel("Recall (%)"); ax.set_ylim(0, 100); ax.grid(axis="y", alpha=0.25)
     ax.legend(frameon=False, ncol=2, loc="upper center"); ax.set_title("Three-seed class-recall comparison for the 83 M MST-CNN")
-    fig.tight_layout(); fig.savefig(output / "figure5_class_recall.png", dpi=300, bbox_inches="tight"); plt.close(fig)
+    fig.tight_layout(); fig.savefig(output / "class_recall_diagnostic.png", dpi=300, bbox_inches="tight"); plt.close(fig)
 
 
 def main():

@@ -19,7 +19,7 @@ class SyntheticEEG(Dataset):
         self.class_names = ["rest", "left", "right", "feet"]
         self.labels = np.tile(np.arange(4), 8)
         self.subject_ids = np.repeat(np.arange(8), 4)
-        self.samples = torch.randn(len(self.labels), 64, 640)
+        self.samples = torch.randn(len(self.labels), 64, study.N_EPOCH_SAMPLES)
 
     def __len__(self):
         return len(self.labels)
@@ -44,7 +44,7 @@ def main():
         model = study.build_model(name, 4, 0.5, device)
         assert study.parameter_count(model) == count
         with torch.no_grad():
-            assert model(torch.zeros(1, 64, 640)).shape == (1, 4)
+            assert model(torch.zeros(1, 64, study.N_EPOCH_SAMPLES)).shape == (1, 4)
         del model
     data = SyntheticEEG()
     train_idx = np.arange(24)

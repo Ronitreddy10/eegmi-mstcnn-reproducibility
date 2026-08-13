@@ -14,13 +14,23 @@ These files were generated from the completed Kaggle export used for the revised
 
 The checked archive is committed here as `reviewer_safe_13_results_export.zip`. The committed CSV and JSON values were recomputed from it and compared at full stored precision. The figure SHA-256 values are:
 
-- `figure4_capacity_cost.png`: `357c23f8b53e8e1e1fb51aa7b09e466e289d0d1961abaa05da375af596f4fef8`
-- `figure5_class_recall.png`: `7f47780aa9adec20c18459dfc736f45de12e1d0e96ff25d83470bc1f3b3f69df`
+- `supplementary_figure_s2_capacity_cost.png`: `a28da30741b8358943841071f7602b791272e08f79f29b5a4e802f0e38a95beb`
+- `class_recall_diagnostic.png`: `7f47780aa9adec20c18459dfc736f45de12e1d0e96ff25d83470bc1f3b3f69df`
 - `figure_s1_training_diagnostics.png`: `7ac41ff4a5f93cb29db480ade05af1ae8e30fa16e2e9920ba22432716ba22899`
+- `figure4_reference_83m_aggregate_confusion.png`: `4c12b2cf897d3c71a1712bba8384d66a6b9b34c2da8d62ac1844727fd339d5f9`
+- `figure5_reference_83m_per_fold_confusions.png`: `2fc60ff8a70305b9ae546c8e021c2acfc1b732345c369a0749ee8ccc47506c2d`
 
 Regenerate the outputs with:
 
 ```bash
 python src/analyze_results.py --archive analysis_outputs/reviewer_safe_13_results_export.zip --output-dir reproduced_analysis
 python src/analyze_training_diagnostics.py --archive analysis_outputs/reviewer_safe_13_results_export.zip --output-dir reproduced_analysis
+python src/generate_confusion_figures.py --archive analysis_outputs/reviewer_safe_13_results_export.zip --output-dir reproduced_analysis
+python src/eeg_journal_analysis.py --data_dir /path/to/eegmmidb/files --output_dir reproduced_physiology --reject_uv 300
 ```
+
+The `physiology/` directory contains the checked tabular outputs and manuscript
+Figures 6--8 from the independent neurophysiological analysis. The analysis
+retained 76 artefact-screened subjects at the documented 300 microvolt
+peak-to-peak threshold. It is independent of the classifier and does not provide
+features to the MST-CNN.

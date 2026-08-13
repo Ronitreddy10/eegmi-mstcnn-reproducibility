@@ -4,6 +4,8 @@ Reproducibility package for four-class, inter-subject EEG motor-imagery decoding
 
 This repository implements the corrected experimental protocol used in the revised manuscript: nested subject-wise evaluation, controlled model-capacity ablation, neural baseline comparisons, computational profiling, checkpoint-selection diagnostics, multiple random seeds for the 83.08 M reference model, and effective-number class-balanced training.
 
+The implemented cue-aligned epoch spans 0--4 s at 160 Hz. Because MNE includes both temporal endpoints, each epoch contains **641 samples** (`0.000, 0.00625, ..., 4.000 s`).
+
 ## What this repository establishes
 
 - The outer evaluation is one **10-fold subject-wise grouped cross-validation** procedure. It is not a separate subject-specific CV plus another 10-fold CV.
@@ -68,14 +70,28 @@ Across the three 83.08 M seeds, effective-number weighting improved balanced acc
 │   ├── run_grid.py
 │   ├── summarize_grid.py
 │   ├── analyze_results.py
-│   └── analyze_training_diagnostics.py
+│   ├── analyze_training_diagnostics.py
+│   ├── generate_confusion_figures.py
+│   └── eeg_journal_analysis.py
 ├── tests/
 │   └── smoke_test.py
 └── analysis_outputs/
     ├── reviewer_safe_13_results_export.zip
-    ├── figure4_capacity_cost.png
-    ├── figure5_class_recall.png
-    └── figure_s1_training_diagnostics.png
+    ├── supplementary_figure_s2_capacity_cost.png
+    ├── class_recall_diagnostic.png
+    ├── figure_s1_training_diagnostics.png
+    ├── figure4_reference_83m_aggregate_confusion.png
+    ├── figure5_reference_83m_per_fold_confusions.png
+    └── physiology/
+        ├── signal_analysis_summary.json
+        ├── roi_omnibus_statistics.csv
+        ├── roi_pairwise_statistics.csv
+        ├── channel_contrast_statistics.csv
+        ├── bandpower_top_electrodes.csv
+        ├── class_waveforms_motor_channels.png
+        ├── motor_roi_bandpower.png
+        ├── bandpower_class_topographies.png
+        └── bandpower_contrast_topographies.png
 ```
 
 ## Dataset
@@ -137,7 +153,22 @@ python src/analyze_results.py \
 python src/analyze_training_diagnostics.py \
   --archive analysis_outputs/reviewer_safe_13_results_export.zip \
   --output-dir reproduced_analysis
+
+python src/generate_confusion_figures.py \
+  --archive analysis_outputs/reviewer_safe_13_results_export.zip \
+  --output-dir reproduced_analysis
 ```
+
+Regenerate the independent neurophysiological analysis used for manuscript Figures 6--8 and Tables 9--10:
+
+```bash
+python src/eeg_journal_analysis.py \
+  --data_dir /path/to/eegmmidb \
+  --output_dir reproduced_physiology \
+  --reject_uv 300
+```
+
+This branch uses average re-referencing, 4--40 Hz filtering, a 300 µV peak-to-peak rejection criterion, Welch mu/beta band-power estimation, subject-level aggregation, Friedman tests, paired Wilcoxon tests with Holm correction, and electrode-level standardized effects. It is independent of classifier training.
 
 ## Corrected checkpoint protocol
 
@@ -159,9 +190,11 @@ Every fold stores subject IDs, random seed, loss condition, class weights, selec
 - `performance_rows.csv`: checked manuscript table rows.
 - `manuscript_results.json`: consolidated numerical results and paired tests.
 - `training_diagnostics_summary.json`: best-checkpoint versus final-epoch diagnostics.
-- `figure4_capacity_cost.png`: capacity-performance and computational-cost comparison.
-- `figure5_class_recall.png`: three-seed per-class recall comparison.
+- `supplementary_figure_s2_capacity_cost.png`: Supplementary Figure S2, the capacity-performance and computational-cost comparison.
+- `class_recall_diagnostic.png`: supporting three-seed per-class recall diagnostic; it is not manuscript Figure 5.
 - `figure_s1_training_diagnostics.png`: checkpoint-selection curves and epoch distributions.
+- `figure4_reference_83m_aggregate_confusion.png`: manuscript Figure 4.
+- `figure5_reference_83m_per_fold_confusions.png`: manuscript Figure 5.
 - `reviewer_safe_13_results_export.zip`: the checked 13-experiment, 130-fold Kaggle result archive used to regenerate the statistics and figures.
 
 [`analysis_outputs/README.md`](analysis_outputs/README.md) records the completed archive checksum, fold counts, validation checks, and the provenance of the committed outputs.

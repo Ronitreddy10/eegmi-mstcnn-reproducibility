@@ -187,7 +187,7 @@
     {
       "model": "MST-CNN 0.5 M, unweighted",
       "parameters": 551144,
-      "gflops": 0.395355136,
+      "gflops": 0.396159616,
       "latency_ms": 2.06950252003935,
       "accuracy": [
         66.67864840820916,
@@ -205,7 +205,7 @@
     {
       "model": "MST-CNN 5 M, unweighted",
       "parameters": 4956614,
-      "gflops": 2.0346916,
+      "gflops": 2.03906664,
       "latency_ms": 3.3419767599934858,
       "accuracy": [
         69.9925773592909,
@@ -223,7 +223,7 @@
     {
       "model": "MST-CNN 20 M, unweighted",
       "parameters": 19936294,
-      "gflops": 4.2119268,
+      "gflops": 4.22106088,
       "latency_ms": 5.8123583599990525,
       "accuracy": [
         70.22592932318608,
@@ -241,7 +241,7 @@
     {
       "model": "MST-CNN 83 M, unweighted (seed 42)",
       "parameters": 83080458,
-      "gflops": 7.063502864,
+      "gflops": 7.078550544,
       "latency_ms": 8.314596179997693,
       "accuracy": [
         70.23346438781435,
@@ -259,7 +259,7 @@
     {
       "model": "MST-CNN 83 M, effective CE (seed 42)",
       "parameters": 83080458,
-      "gflops": 7.063502864,
+      "gflops": 7.078550544,
       "latency_ms": 8.979115320125857,
       "accuracy": [
         67.73989491737105,
@@ -277,7 +277,7 @@
     {
       "model": "EEGNet, effective CE",
       "parameters": 3412,
-      "gflops": 0.043488768,
+      "gflops": 0.043556352,
       "latency_ms": 0.4736731599950872,
       "accuracy": [
         53.00828220312649,
@@ -295,7 +295,7 @@
     {
       "model": "ShallowConvNet, effective CE",
       "parameters": 109404,
-      "gflops": 0.20501664,
+      "gflops": 0.20534944,
       "latency_ms": 0.5242254600216256,
       "accuracy": [
         63.44328554929742,
@@ -313,7 +313,7 @@
     {
       "model": "DeepConvNet1D, effective CE",
       "parameters": 1062276,
-      "gflops": 0.398491648,
+      "gflops": 0.398696448,
       "latency_ms": 0.8965930899285013,
       "accuracy": [
         51.400342798448015,
@@ -331,7 +331,7 @@
     {
       "model": "ResNet1D, effective CE",
       "parameters": 1949316,
-      "gflops": 0.581961728,
+      "gflops": 0.585852928,
       "latency_ms": 1.581272859875753,
       "accuracy": [
         49.19951063075176,

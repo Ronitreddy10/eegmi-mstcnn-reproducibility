@@ -43,6 +43,10 @@ CAPACITY_CONFIGS = {
     "mstcnn_83m": dict(max_channels=256, stream_out=64, pool_size=48, hidden=6146),
 }
 
+# MNE includes both endpoints when epochs are created with tmin=0 and tmax=4.
+# At 160 Hz, the implemented 0--4 s window therefore contains 641 samples.
+N_EPOCH_SAMPLES = 641
+
 
 class ScalableMSTCNN(nn.Module):
     """The manuscript architecture with explicit, reproducible width controls."""
@@ -187,9 +191,9 @@ def build_model(name: str, n_classes: int, dropout: float, device: torch.device)
     if name in CAPACITY_CONFIGS:
         model = ScalableMSTCNN(n_classes=n_classes, dropout=dropout, **CAPACITY_CONFIGS[name])
     elif name == "eegnet":
-        model = base.EEGNetBaseline(64, 640, n_classes, dropout)
+        model = base.EEGNetBaseline(64, N_EPOCH_SAMPLES, n_classes, dropout)
     elif name == "shallowconvnet":
-        model = base.ShallowConvNetBaseline(64, 640, n_classes, dropout)
+        model = base.ShallowConvNetBaseline(64, N_EPOCH_SAMPLES, n_classes, dropout)
     elif name == "deepconvnet1d":
         model = DeepConvNet1D(n_classes, dropout=dropout)
     elif name == "resnet1d":
@@ -378,7 +382,7 @@ def profile_macs(model, sample):
 
 
 def benchmark(model, device, warmup=30, repeats=100):
-    sample = torch.zeros(1, 64, 640, device=device)
+    sample = torch.zeros(1, 64, N_EPOCH_SAMPLES, device=device)
     model.eval()
     macs = profile_macs(model, sample)
     with torch.no_grad():
