@@ -20,12 +20,12 @@ The loader verifies the required files before training. It does not silently sub
 
 Classification uses 103 subjects: subjects 1 through 109 excluding 43, 88, 89, 92, 100, and 104.
 
-The archived manuscript physiology cohort contains 76 subjects. The exact list, per-class annotation counts, rejected trials, retained trials, and totals are provided in:
+The updated physiology analysis contains 85 subjects. These are the classification-eligible subjects retaining at least one trial in every class after the documented 300 microvolt peak-to-peak rejection rule. The exact list, per-class annotation counts, rejected trials, retained trials, and totals are provided in:
 
 - `supplementary/physiology_included_subject_trial_counts.csv`
 - `supplementary/Supplementary_Physiology_Cohort_and_Trial_Counts.xlsx`
 
-The 27 classification-eligible subjects outside the archived physiology cohort and their recorded reasons are in `supplementary/physiology_excluded_subjects.csv`. Eighteen lose every usable trial from at least one class under the 300 microvolt peak-to-peak rule. Nine other subjects are absent from the archived 76-subject cohort although the current transparent audit retains at least one trial in every class; no additional historical criterion is recorded for those nine subjects. This distinction is retained in the public files rather than assigning an unsupported exclusion reason.
+The 18 classification-eligible subjects excluded from the updated physiology cohort and their class-specific reasons are in `supplementary/physiology_excluded_subjects.csv`. Every excluded subject loses all usable trials from at least one class under the 300 microvolt peak-to-peak rule.
 
 ## Preprocessing
 

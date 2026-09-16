@@ -8,21 +8,12 @@ Subject ID,Cohort exclusion reason,Trigger class,Current audit complete,Rest ret
 22,all rest trials exceeded 300uv,Rest,No,0,0,1,0
 23,all both feet imagery trials exceeded 300uv,Both feet imagery,No,1,2,2,0
 24,all rest trials exceeded 300uv,Rest,No,0,0,0,0
-32,Not selected in archived 76-subject cohort; additional historical criterion not recorded,Not recorded,Yes,13,1,4,3
-39,Not selected in archived 76-subject cohort; additional historical criterion not recorded,Not recorded,Yes,25,7,8,10
 48,all rest trials exceeded 300uv,Rest,No,0,0,1,1
-49,Not selected in archived 76-subject cohort; additional historical criterion not recorded,Not recorded,Yes,3,3,2,6
 53,all rest trials exceeded 300uv,Rest,No,0,0,0,0
-56,Not selected in archived 76-subject cohort; additional historical criterion not recorded,Not recorded,Yes,6,6,4,3
-58,Not selected in archived 76-subject cohort; additional historical criterion not recorded,Not recorded,Yes,27,12,10,1
 60,all rest trials exceeded 300uv,Rest,No,0,0,1,0
 61,all rest trials exceeded 300uv,Rest,No,0,0,1,0
-83,Not selected in archived 76-subject cohort; additional historical criterion not recorded,Not recorded,Yes,14,4,7,7
-86,Not selected in archived 76-subject cohort; additional historical criterion not recorded,Not recorded,Yes,20,7,9,22
 90,all rest trials exceeded 300uv,Rest,No,0,3,1,4
 91,all rest trials exceeded 300uv,Rest,No,0,0,0,2
 96,all rest trials exceeded 300uv,Rest,No,0,0,0,0
-97,Not selected in archived 76-subject cohort; additional historical criterion not recorded,Not recorded,Yes,3,3,4,1
-99,Not selected in archived 76-subject cohort; additional historical criterion not recorded,Not recorded,Yes,17,1,3,6
 108,all right fist imagery trials exceeded 300uv,Right fist imagery,No,7,1,0,3
 109,all rest trials exceeded 300uv,Rest,No,0,0,0,0

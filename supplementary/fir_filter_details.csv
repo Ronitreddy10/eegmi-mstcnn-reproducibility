@@ -1,7 +1,7 @@
 Item,Recorded setting,Source
 Dataset,PhysioNet EEG Motor Movement Imagery Database version 1.0.0,https://physionet.org/content/eegmmidb/1.0.0/
 Classification cohort,"Subjects 1 to 109 excluding 43, 88, 89, 92, 100, and 104",README.md
-Physiology cohort,76 subjects listed in Included Subjects,Archived signal_analysis_summary.json
+Physiology cohort,85 subjects listed in Included Subjects,Updated signal_analysis_summary.json
 Artifact rule,300 microvolt peak-to-peak threshold across EEG channels,eeg_journal_analysis.py
 Filter type,FIR band-pass,eeg_stage_ablation.py
 Passband edges,4 to 40 Hz,Runtime FIR metadata
