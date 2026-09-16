@@ -61,6 +61,77 @@ logging.basicConfig(
 logger = logging.getLogger("eeg_stage_ablation")
 
 
+CLASSIFIER_FIR_SETTINGS = {
+    "l_freq_hz": 4.0,
+    "h_freq_hz": 40.0,
+    "method": "fir",
+    "phase": "zero",
+    "fir_design": "firwin",
+    "fir_window": "hamming",
+    "filter_length": "auto",
+    "l_trans_bandwidth": "auto",
+    "h_trans_bandwidth": "auto",
+    "pad": "reflect_limited",
+}
+
+
+def classifier_fir_metadata(sfreq, n_times):
+    """Return an auditable record of the exact MNE FIR request and tap count."""
+    sfreq = float(sfreq)
+    l_freq = CLASSIFIER_FIR_SETTINGS["l_freq_hz"]
+    h_freq = CLASSIFIER_FIR_SETTINGS["h_freq_hz"]
+    lower_transition = min(max(l_freq * 0.25, 2.0), l_freq)
+    upper_transition = min(max(h_freq * 0.25, 2.0), sfreq / 2.0 - h_freq)
+    taps = mne.filter.create_filter(
+        np.zeros((1, int(n_times)), dtype=np.float64),
+        sfreq=sfreq,
+        l_freq=l_freq,
+        h_freq=h_freq,
+        method=CLASSIFIER_FIR_SETTINGS["method"],
+        phase=CLASSIFIER_FIR_SETTINGS["phase"],
+        fir_window=CLASSIFIER_FIR_SETTINGS["fir_window"],
+        fir_design=CLASSIFIER_FIR_SETTINGS["fir_design"],
+        filter_length=CLASSIFIER_FIR_SETTINGS["filter_length"],
+        l_trans_bandwidth=CLASSIFIER_FIR_SETTINGS["l_trans_bandwidth"],
+        h_trans_bandwidth=CLASSIFIER_FIR_SETTINGS["h_trans_bandwidth"],
+        verbose=False,
+    )
+    return {
+        **CLASSIFIER_FIR_SETTINGS,
+        "software": "mne.io.Raw.filter",
+        "mne_version": mne.__version__,
+        "sampling_frequency_hz": float(sfreq),
+        "realized_lower_transition_bandwidth_hz": float(lower_transition),
+        "realized_upper_transition_bandwidth_hz": float(upper_transition),
+        "realized_lower_minus_6db_cutoff_hz": float(l_freq - lower_transition / 2.0),
+        "realized_upper_minus_6db_cutoff_hz": float(h_freq + upper_transition / 2.0),
+        "realized_fir_length_samples": int(len(taps)),
+        "realized_fir_order": int(len(taps) - 1),
+        "cutoff_implementation": "MNE firwin band-pass using the requested passband edges and automatic transition bandwidths",
+        "applied_before_epoch_extraction": True,
+        "epoch_zscore_after_filtering": True,
+        "zero_phase_note": "Symmetric linear-phase FIR with group-delay compensation (MNE phase='zero').",
+    }
+
+
+def apply_classifier_fir(raw):
+    """Apply the manuscript classifier filter with every option made explicit."""
+    raw.filter(
+        l_freq=CLASSIFIER_FIR_SETTINGS["l_freq_hz"],
+        h_freq=CLASSIFIER_FIR_SETTINGS["h_freq_hz"],
+        method=CLASSIFIER_FIR_SETTINGS["method"],
+        phase=CLASSIFIER_FIR_SETTINGS["phase"],
+        fir_window=CLASSIFIER_FIR_SETTINGS["fir_window"],
+        fir_design=CLASSIFIER_FIR_SETTINGS["fir_design"],
+        filter_length=CLASSIFIER_FIR_SETTINGS["filter_length"],
+        l_trans_bandwidth=CLASSIFIER_FIR_SETTINGS["l_trans_bandwidth"],
+        h_trans_bandwidth=CLASSIFIER_FIR_SETTINGS["h_trans_bandwidth"],
+        pad=CLASSIFIER_FIR_SETTINGS["pad"],
+        verbose=False,
+    )
+    return raw
+
+
 def index_attached_edfs():
     """Index an optional read-only EEGMMIDB copy attached to a Kaggle notebook."""
     source_dir = os.environ.get("EEGMMIDB_SOURCE_DIR", "").strip()
@@ -227,6 +298,8 @@ class PhysioNetStageDataset(Dataset):
         self.labels = []
         self.subject_ids = []
         self.channel_names = None
+        self.sampling_frequency_hz = None
+        self.preprocessing_metadata = None
         self.attached_edf_index = index_attached_edfs()
 
         os.makedirs(data_dir, exist_ok=True)
@@ -292,11 +365,15 @@ class PhysioNetStageDataset(Dataset):
         for run, path in zip(runs, edf_paths):
             raw = mne.io.read_raw_edf(path, preload=True, stim_channel="auto", verbose=False)
             mne.datasets.eegbci.standardize(raw)
+            if self.sampling_frequency_hz is None:
+                self.sampling_frequency_hz = float(raw.info["sfreq"])
             if self.channel_set == "motor":
                 available = [ch for ch in MOTOR_CHANNELS if ch in raw.ch_names]
                 raw.pick_channels(available, ordered=True)
             if self.preprocess in {"bandpass", "bandpass_zscore"} and self.feature_mode == "raw":
-                raw.filter(l_freq=4.0, h_freq=40.0, fir_design="firwin", verbose=False)
+                if self.preprocessing_metadata is None:
+                    self.preprocessing_metadata = classifier_fir_metadata(raw.info["sfreq"], raw.n_times)
+                apply_classifier_fir(raw)
             raws.append(raw)
             run_numbers.append(run)
             if self.channel_names is None:

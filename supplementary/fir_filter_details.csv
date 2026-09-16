@@ -1,0 +1,20 @@
+Item,Recorded setting,Source
+Dataset,PhysioNet EEG Motor Movement Imagery Database version 1.0.0,https://physionet.org/content/eegmmidb/1.0.0/
+Classification cohort,"Subjects 1 to 109 excluding 43, 88, 89, 92, 100, and 104",README.md
+Physiology cohort,76 subjects listed in Included Subjects,Archived signal_analysis_summary.json
+Artifact rule,300 microvolt peak-to-peak threshold across EEG channels,eeg_journal_analysis.py
+Filter type,FIR band-pass,eeg_stage_ablation.py
+Passband edges,4 to 40 Hz,Runtime FIR metadata
+Design method,firwin,MNE Raw.filter
+Window,hamming,MNE Raw.filter
+Phase,zero,MNE Raw.filter
+Realized filter length,265 samples,MNE 1.12.1 runtime
+Realized filter order,264,MNE 1.12.1 runtime
+Lower transition bandwidth,2 Hz,MNE 1.12.1 runtime
+Upper transition bandwidth,10 Hz,MNE 1.12.1 runtime
+Minus 6 dB cutoffs,3 Hz and 45 Hz,MNE 1.12.1 runtime
+Implementation,mne.io.Raw.filter with firwin,MNE 1.12.1
+Filtering order,Applied to continuous runs before epoch extraction,eeg_journal_analysis.py
+Edge padding,reflect_limited,MNE Raw.filter
+Sampling frequency,160 Hz,Dataset and runtime metadata
+Physiology normalization,No epoch-wise z-score,eeg_journal_analysis.py

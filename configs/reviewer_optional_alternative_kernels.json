@@ -1,0 +1,5 @@
+[
+  {"name": "kernel_k9_11", "stage": "optional-kernels", "model": "mstcnn_20m", "imbalance": "none", "seed": 42, "kernels": [9, 11], "tmin": 0.0, "tmax": 4.0},
+  {"name": "kernel_k11_13", "stage": "optional-kernels", "model": "mstcnn_20m", "imbalance": "none", "seed": 42, "kernels": [11, 13], "tmin": 0.0, "tmax": 4.0},
+  {"name": "kernel_k7_13", "stage": "optional-kernels", "model": "mstcnn_20m", "imbalance": "none", "seed": 42, "kernels": [7, 13], "tmin": 0.0, "tmax": 4.0}
+]

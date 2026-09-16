@@ -6,3 +6,4 @@ eeg_data/
 robustness_results/
 robustness_results*.zip
 .DS_Store
+work/

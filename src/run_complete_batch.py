@@ -63,6 +63,9 @@ def experiment_args(cli, job, output):
         checkpoint_archive=Path(cli.checkpoint_archive),
         refit_mode=cli.refit_mode,
         deadline_unix=getattr(cli, "deadline_unix", None),
+        kernels=job.get("kernels", [7, 9, 11, 13]),
+        tmin=float(job.get("tmin", 0.0)),
+        tmax=float(job.get("tmax", 4.0)),
     )
 
 
@@ -73,7 +76,8 @@ def main():
     jobs = expand_jobs(cli.grid)
     start_time = time.time()
     cli.deadline_unix = start_time + cli.max_wall_hours * 3600.0
-    dataset = study.load_verified_dataset(cli.data_dir, max_subjects=20 if cli.smoke else None)
+    dataset = None
+    dataset_window = None
     manifest = {
         "protocol": "complete resumable multi-seed batch",
         "jobs": jobs,
@@ -96,6 +100,15 @@ def main():
             break
         print(f"START job {index + 1}/{len(jobs)}: {job['run_name']}", flush=True)
         try:
+            current_window = (float(job.get("tmin", 0.0)), float(job.get("tmax", 4.0)))
+            if dataset is None or dataset_window != current_window:
+                dataset = study.load_verified_dataset(
+                    cli.data_dir,
+                    max_subjects=20 if cli.smoke else None,
+                    tmin=current_window[0],
+                    tmax=current_window[1],
+                )
+                dataset_window = current_window
             study.run_experiment(experiment_args(cli, job, output), dataset=dataset)
         except Exception as exc:
             error = {

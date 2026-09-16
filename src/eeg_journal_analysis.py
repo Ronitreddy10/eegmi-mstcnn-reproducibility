@@ -35,6 +35,8 @@ from scipy.stats import friedmanchisquare, rankdata, wilcoxon
 from eeg_stage_ablation import (
     CLASS_CONFIGS,
     PhysioNetStageDataset,
+    apply_classifier_fir,
+    classifier_fir_metadata,
     index_attached_edfs,
     map_physionet_event,
     resolve_edf_paths,
@@ -182,17 +184,27 @@ def load_subject_summary(subject_id, args, keep_sample=False):
     info = None
     channel_names = None
     sfreq = None
+    audit = {
+        "subject_id": int(subject_id),
+        "annotation_target_trials": {name: 0 for name in CLASS_NAMES},
+        "epochable_target_trials": {name: 0 for name in CLASS_NAMES},
+        "rejected_peak_to_peak_trials": {name: 0 for name in CLASS_NAMES},
+        "retained_trials": {name: 0 for name in CLASS_NAMES},
+    }
 
     for run, path in zip(runs, paths):
         raw = mne.io.read_raw_edf(path, preload=True, stim_channel="auto", verbose=False)
         standardize_raw(raw)
         raw_before = raw.copy() if keep_sample and sample is None else None
-        raw.filter(l_freq=4.0, h_freq=40.0, fir_design="firwin", verbose=False)
+        apply_classifier_fir(raw)
         sfreq = float(raw.info["sfreq"])
         events, event_id = mne.events_from_annotations(raw, verbose=False)
         inverse = {int(code): str(name) for name, code in event_id.items()}
+        for code in events[:, 2]:
+            mapped = map_physionet_event("mi4_rest", run, inverse.get(int(code)))
+            if mapped is not None:
+                audit["annotation_target_trials"][CLASS_NAMES[mapped]] += 1
         picks = mne.pick_types(raw.info, meg=False, eeg=True, exclude="bads")
-        reject = {"eeg": args.reject_uv * 1e-6} if args.reject_uv > 0 else None
         epochs = mne.Epochs(
             raw,
             events,
@@ -202,7 +214,7 @@ def load_subject_summary(subject_id, args, keep_sample=False):
             baseline=None,
             proj=False,
             picks=picks,
-            reject=reject,
+            reject=None,
             preload=True,
             verbose=False,
         )
@@ -223,29 +235,61 @@ def load_subject_summary(subject_id, args, keep_sample=False):
                 "after": raw.get_data(picks=[channel], start=start, stop=stop)[0],
             }
 
-        powers = bandpower_db(data, sfreq)
-        wave_indices = [channel_names.index(ch) for ch in WAVE_CHANNELS]
+        keep_indices = []
+        keep_classes = []
+        threshold_v = args.reject_uv * 1e-6 if args.reject_uv > 0 else None
+        peak_to_peak = np.ptp(data, axis=-1).max(axis=1)
         for epoch_index, code in enumerate(labels):
-            event_name = inverse.get(int(code))
-            mapped = map_physionet_event("mi4_rest", run, event_name)
+            mapped = map_physionet_event("mi4_rest", run, inverse.get(int(code)))
             if mapped is None:
                 continue
             class_name = CLASS_NAMES[mapped]
-            by_class[class_name]["waveforms"].append(data[epoch_index, wave_indices])
+            audit["epochable_target_trials"][class_name] += 1
+            if threshold_v is not None and peak_to_peak[epoch_index] > threshold_v:
+                audit["rejected_peak_to_peak_trials"][class_name] += 1
+                continue
+            audit["retained_trials"][class_name] += 1
+            keep_indices.append(epoch_index)
+            keep_classes.append(class_name)
+        if not keep_indices:
+            continue
+        kept_data = data[np.asarray(keep_indices, dtype=int)]
+        powers = bandpower_db(kept_data, sfreq)
+        wave_indices = [channel_names.index(ch) for ch in WAVE_CHANNELS]
+        for epoch_index, class_name in enumerate(keep_classes):
+            by_class[class_name]["waveforms"].append(kept_data[epoch_index, wave_indices])
             by_class[class_name]["mu"].append(powers["mu"][epoch_index])
             by_class[class_name]["beta"].append(powers["beta"][epoch_index])
 
     subject_result = {}
     for class_name, values in by_class.items():
         if not values["mu"]:
-            return None, sample, info, channel_names, sfreq
+            audit["complete_for_physiology"] = False
+            if audit["annotation_target_trials"][class_name] == 0:
+                reason = f"no_annotated_{class_name}_trials"
+            elif audit["epochable_target_trials"][class_name] == 0:
+                reason = f"no_epochable_{class_name}_trials"
+            elif (
+                audit["rejected_peak_to_peak_trials"][class_name]
+                == audit["epochable_target_trials"][class_name]
+            ):
+                reason = f"all_{class_name}_trials_exceeded_300uv"
+            else:
+                reason = f"no_retained_{class_name}_trials"
+            audit["exclusion_reason"] = reason
+            audit["equal_retained_trial_counts"] = False
+            return None, sample, info, channel_names, sfreq, audit
         subject_result[class_name] = {
             "waveforms": np.mean(values["waveforms"], axis=0),
             "mu": np.mean(values["mu"], axis=0),
             "beta": np.mean(values["beta"], axis=0),
             "n_trials": len(values["mu"]),
         }
-    return subject_result, sample, info, channel_names, sfreq
+    retained = list(audit["retained_trials"].values())
+    audit["complete_for_physiology"] = True
+    audit["exclusion_reason"] = ""
+    audit["equal_retained_trial_counts"] = len(set(retained)) == 1
+    return subject_result, sample, info, channel_names, sfreq, audit
 
 
 def make_synthetic_data(args):
@@ -297,7 +341,20 @@ def make_synthetic_data(args):
         "before": 1e-5 * (np.sin(2 * np.pi * 10 * times) + 0.7 * np.sin(2 * np.pi * 60 * times)),
         "after": 1e-5 * np.sin(2 * np.pi * 10 * times),
     }
-    return class_array, sample, info, channel_names, sfreq
+    audits = []
+    for subject_id, _ in class_array:
+        counts = {name: 20 for name in CLASS_NAMES}
+        audits.append({
+            "subject_id": int(subject_id),
+            "annotation_target_trials": counts,
+            "epochable_target_trials": counts,
+            "rejected_peak_to_peak_trials": {name: 0 for name in CLASS_NAMES},
+            "retained_trials": counts,
+            "complete_for_physiology": True,
+            "exclusion_reason": "",
+            "equal_retained_trial_counts": True,
+        })
+    return class_array, sample, info, channel_names, sfreq, audits
 
 
 def collect_signal_data(args):
@@ -308,12 +365,14 @@ def collect_signal_data(args):
     if args.max_subjects:
         subjects = subjects[: args.max_subjects]
     results = []
+    audits = []
     sample = info = channel_names = sfreq = None
     for position, subject_id in enumerate(subjects, start=1):
         try:
-            result, possible_sample, possible_info, possible_channels, possible_sfreq = (
+            result, possible_sample, possible_info, possible_channels, possible_sfreq, audit = (
                 load_subject_summary(subject_id, args, keep_sample=(sample is None))
             )
+            audits.append(audit)
             if result is not None:
                 results.append((subject_id, result))
             if sample is None and possible_sample is not None:
@@ -326,11 +385,17 @@ def collect_signal_data(args):
                 sfreq = possible_sfreq
         except Exception as exc:
             logger.warning("Skipping S%03d during journal analysis: %s", subject_id, exc)
+            audits.append({
+                "subject_id": int(subject_id),
+                "complete_for_physiology": False,
+                "exclusion_reason": f"load_or_processing_error:{type(exc).__name__}:{exc}",
+                "equal_retained_trial_counts": False,
+            })
         if position % 10 == 0 or position == len(subjects):
             logger.info("Journal analysis loaded %d/%d subjects; complete=%d", position, len(subjects), len(results))
     if not results:
         raise RuntimeError("No complete subjects available for journal analysis.")
-    return results, sample, info, channel_names, sfreq
+    return results, sample, info, channel_names, sfreq, audits
 
 
 def stack_signal_data(results, channel_names):
@@ -685,8 +750,35 @@ def plot_analysis_diagram(output_dir):
 
 
 def run_signal_analysis(args, output_dir):
-    results, sample, info, channel_names, sfreq = collect_signal_data(args)
+    results, sample, info, channel_names, sfreq, audits = collect_signal_data(args)
     subject_ids, waveforms, powers, trial_counts = stack_signal_data(results, channel_names)
+    audit_rows = []
+    for item in audits:
+        row = {
+            "subject_id": item["subject_id"],
+            "complete_for_physiology": item.get("complete_for_physiology", False),
+            "exclusion_reason": item.get("exclusion_reason", ""),
+            "equal_retained_trial_counts": item.get("equal_retained_trial_counts", False),
+        }
+        for class_name in CLASS_NAMES:
+            for count_name in (
+                "annotation_target_trials",
+                "epochable_target_trials",
+                "rejected_peak_to_peak_trials",
+                "retained_trials",
+            ):
+                row[f"{class_name}_{count_name}"] = item.get(count_name, {}).get(class_name, 0)
+        audit_rows.append(row)
+    write_csv(output_dir / "physiology_subject_audit.csv", audit_rows)
+    excluded_audits = [item for item in audits if not item.get("complete_for_physiology", False)]
+    class_rejection_totals = {
+        class_name: int(sum(item.get("rejected_peak_to_peak_trials", {}).get(class_name, 0) for item in audits))
+        for class_name in CLASS_NAMES
+    }
+    exclusion_trigger_classes = {
+        class_name: int(sum(class_name in item.get("exclusion_reason", "") for item in excluded_audits))
+        for class_name in CLASS_NAMES
+    }
     np.savez_compressed(
         output_dir / "subject_level_eeg_features.npz",
         subject_ids=subject_ids,
@@ -719,7 +811,28 @@ def run_signal_analysis(args, output_dir):
         "epoch_seconds": [args.tmin, args.tmax],
         "epoch_samples": int(waveforms.shape[-1]),
         "artifact_rejection_peak_to_peak_uv": args.reject_uv,
-        "preprocessing": "average reference plus 4-40 Hz bandpass; no epoch-wise z-score",
+        "preprocessing": "average reference plus explicitly logged 4-40 Hz zero-phase FIR; no epoch-wise z-score",
+        "fir_filter": classifier_fir_metadata(sfreq, max(int(round(sfreq * 60)), waveforms.shape[-1])),
+        "physiology_audit": {
+            "n_classification_eligible_subjects_audited": len(audits),
+            "n_complete_subjects": len(subject_ids),
+            "n_excluded_from_physiology": len(excluded_audits),
+            "exclusion_reasons": {
+                reason: int(sum(item.get("exclusion_reason", "") == reason for item in excluded_audits))
+                for reason in sorted(set(item.get("exclusion_reason", "") for item in excluded_audits))
+            },
+            "peak_to_peak_rejected_trials_by_class": class_rejection_totals,
+            "subjects_excluded_with_zero_retained_trials_by_class": exclusion_trigger_classes,
+            "all_included_subjects_have_equal_class_trial_counts": bool(
+                all(item.get("equal_retained_trial_counts", False) for item in audits if item.get("complete_for_physiology", False))
+            ),
+            "included_subjects_with_unequal_class_trial_counts": [
+                int(item["subject_id"])
+                for item in audits
+                if item.get("complete_for_physiology", False) and not item.get("equal_retained_trial_counts", False)
+            ],
+            "detail_csv": "physiology_subject_audit.csv",
+        },
         "bands_hz": BANDS,
         "trial_counts_total": {
             class_name: int(trial_counts[:, index].sum())

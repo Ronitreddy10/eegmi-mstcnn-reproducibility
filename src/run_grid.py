@@ -52,6 +52,9 @@ def main():
             "--epochs", str(args.epochs),
             "--patience", str(args.patience),
             "--batch-size", str(args.batch_size),
+            "--tmin", str(job.get("tmin", 0.0)),
+            "--tmax", str(job.get("tmax", 4.0)),
+            "--kernels", *[str(value) for value in job.get("kernels", [7, 9, 11, 13])],
         ]
         if args.smoke:
             command += ["--max-subjects", "20", "--outer-folds", "2", "--max-folds", "1", "--epochs", "2", "--patience", "2"]

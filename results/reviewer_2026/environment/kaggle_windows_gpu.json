@@ -1,0 +1,93 @@
+{
+  "created_unix": 1789128037.0453463,
+  "python": "3.12.13 (main, Mar  4 2026, 09:23:07) [GCC 11.4.0]",
+  "platform": "Linux-6.12.90+-x86_64-with-glibc2.35",
+  "packages": {
+    "mne": "1.12.1",
+    "numpy": "2.0.2",
+    "scikit-learn": "1.6.1",
+    "scipy": "1.16.3",
+    "torch": "2.10.0+cu128",
+    "matplotlib": "3.10.0"
+  },
+  "cuda_available": true,
+  "gpu_count": 2,
+  "gpu": "Tesla T4",
+  "data_dir": "/kaggle/input/datasets/gamalasran/physionet-eeg-motor-movement-imagery",
+  "stage": "windows",
+  "jobs": [
+    {
+      "name": "kernel_k7_9_11_13",
+      "stage": "kernels",
+      "model": "mstcnn_20m",
+      "imbalance": "none",
+      "seed": 42,
+      "kernels": [
+        7,
+        9,
+        11,
+        13
+      ],
+      "tmin": 0.0,
+      "tmax": 4.0
+    },
+    {
+      "name": "window_0_2",
+      "stage": "windows",
+      "model": "mstcnn_20m",
+      "imbalance": "none",
+      "seed": 42,
+      "kernels": [
+        7,
+        9,
+        11,
+        13
+      ],
+      "tmin": 0.0,
+      "tmax": 2.0
+    },
+    {
+      "name": "window_0_3",
+      "stage": "windows",
+      "model": "mstcnn_20m",
+      "imbalance": "none",
+      "seed": 42,
+      "kernels": [
+        7,
+        9,
+        11,
+        13
+      ],
+      "tmin": 0.0,
+      "tmax": 3.0
+    },
+    {
+      "name": "window_1_4",
+      "stage": "windows",
+      "model": "mstcnn_20m",
+      "imbalance": "none",
+      "seed": 42,
+      "kernels": [
+        7,
+        9,
+        11,
+        13
+      ],
+      "tmin": 1.0,
+      "tmax": 4.0
+    }
+  ],
+  "fixed_training_protocol": {
+    "outer_cv": "10-fold subject-wise GroupKFold",
+    "inner_validation": "grouped 15% of outer-training subjects",
+    "checkpoint_selection": "maximum inner-validation macro-F1",
+    "refit": false,
+    "epochs_max": 60,
+    "early_stopping_patience": 8,
+    "batch_size": 64,
+    "optimizer": "AdamW",
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0001,
+    "dropout": 0.5
+  }
+}

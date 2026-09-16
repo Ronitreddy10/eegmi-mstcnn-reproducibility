@@ -43,6 +43,8 @@ CAPACITY_CONFIGS = {
     "mstcnn_83m": dict(max_channels=256, stream_out=64, pool_size=48, hidden=6146),
 }
 
+DEFAULT_KERNELS = (7, 9, 11, 13)
+
 # MNE includes both endpoints when epochs are created with tmin=0 and tmax=4.
 # At 160 Hz, the implemented 0--4 s window therefore contains 641 samples.
 N_EPOCH_SAMPLES = 641
@@ -60,10 +62,16 @@ class ScalableMSTCNN(nn.Module):
         hidden: int,
         in_channels: int = 64,
         dropout: float = 0.5,
+        kernels=DEFAULT_KERNELS,
     ):
         super().__init__()
+        self.kernels = tuple(int(kernel) for kernel in kernels)
+        if not self.kernels:
+            raise ValueError("At least one temporal kernel is required.")
+        if any(kernel < 1 or kernel % 2 == 0 for kernel in self.kernels):
+            raise ValueError("Temporal kernels must be positive odd integers.")
         self.streams = nn.ModuleList()
-        for kernel in (7, 9, 11, 13):
+        for kernel in self.kernels:
             second_mid = int(np.geomspace(max_channels, stream_out, 3)[1])
             self.streams.append(
                 nn.Sequential(
@@ -71,7 +79,7 @@ class ScalableMSTCNN(nn.Module):
                     base.ConvBlock(kernel, max_channels, second_mid, stream_out, use_pooling=False),
                 )
             )
-        fused = 4 * stream_out * pool_size
+        fused = len(self.kernels) * stream_out * pool_size
         self.pool = nn.AdaptiveMaxPool1d(pool_size)
         self.classifier = nn.Sequential(
             nn.Dropout(dropout),
@@ -187,13 +195,25 @@ def parameter_count(model: nn.Module) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def build_model(name: str, n_classes: int, dropout: float, device: torch.device):
+def build_model(
+    name: str,
+    n_classes: int,
+    dropout: float,
+    device: torch.device,
+    kernels=DEFAULT_KERNELS,
+    epoch_samples=N_EPOCH_SAMPLES,
+):
     if name in CAPACITY_CONFIGS:
-        model = ScalableMSTCNN(n_classes=n_classes, dropout=dropout, **CAPACITY_CONFIGS[name])
+        model = ScalableMSTCNN(
+            n_classes=n_classes,
+            dropout=dropout,
+            kernels=kernels,
+            **CAPACITY_CONFIGS[name],
+        )
     elif name == "eegnet":
-        model = base.EEGNetBaseline(64, N_EPOCH_SAMPLES, n_classes, dropout)
+        model = base.EEGNetBaseline(64, epoch_samples, n_classes, dropout)
     elif name == "shallowconvnet":
-        model = base.ShallowConvNetBaseline(64, N_EPOCH_SAMPLES, n_classes, dropout)
+        model = base.ShallowConvNetBaseline(64, epoch_samples, n_classes, dropout)
     elif name == "deepconvnet1d":
         model = DeepConvNet1D(n_classes, dropout=dropout)
     elif name == "resnet1d":
@@ -271,7 +291,14 @@ def add_recall(metrics, y_true, y_pred, n_classes):
 
 def train_select_epoch(args, dataset, train_idx, val_idx, device, seed):
     seed_everything(seed)
-    model = build_model(args.model, len(dataset.class_names), args.dropout, device)
+    model = build_model(
+        args.model,
+        len(dataset.class_names),
+        args.dropout,
+        device,
+        kernels=args.kernels,
+        epoch_samples=dataset.samples[0].shape[-1],
+    )
     criterion, weights = make_criterion(
         args.imbalance, dataset.labels, train_idx, len(dataset.class_names), device, args.effective_beta, args.focal_gamma
     )
@@ -332,12 +359,19 @@ def evaluate_selected_model(args, model, dataset, train_idx, test_idx, device):
         pin_memory=device.type == "cuda",
     )
     metrics, y_true, y_pred = base.evaluate(model, test_loader, criterion, device)
-    return add_recall(metrics, y_true, y_pred, len(dataset.class_names)), weights
+    return add_recall(metrics, y_true, y_pred, len(dataset.class_names)), weights, y_true, y_pred
 
 
 def refit_and_test(args, dataset, train_idx, test_idx, selected_epoch, device, seed):
     seed_everything(seed)
-    model = build_model(args.model, len(dataset.class_names), args.dropout, device)
+    model = build_model(
+        args.model,
+        len(dataset.class_names),
+        args.dropout,
+        device,
+        kernels=args.kernels,
+        epoch_samples=dataset.samples[0].shape[-1],
+    )
     criterion, weights = make_criterion(
         args.imbalance, dataset.labels, train_idx, len(dataset.class_names), device, args.effective_beta, args.focal_gamma
     )
@@ -349,7 +383,7 @@ def refit_and_test(args, dataset, train_idx, test_idx, selected_epoch, device, s
     for epoch in range(1, selected_epoch + 1):
         train_curve.append(float(base.train_epoch(model, train_loader, criterion, optimizer, device)))
     metrics, y_true, y_pred = base.evaluate(model, test_loader, criterion, device)
-    return model, add_recall(metrics, y_true, y_pred, len(dataset.class_names)), train_curve, weights
+    return model, add_recall(metrics, y_true, y_pred, len(dataset.class_names)), train_curve, weights, y_true, y_pred
 
 
 def profile_macs(model, sample):
@@ -381,8 +415,8 @@ def profile_macs(model, sample):
     return int(macs)
 
 
-def benchmark(model, device, warmup=30, repeats=100):
-    sample = torch.zeros(1, 64, N_EPOCH_SAMPLES, device=device)
+def benchmark(model, device, epoch_samples=N_EPOCH_SAMPLES, warmup=30, repeats=100):
+    sample = torch.zeros(1, 64, epoch_samples, device=device)
     model.eval()
     macs = profile_macs(model, sample)
     with torch.no_grad():
@@ -450,6 +484,15 @@ def parse_args():
     parser.add_argument("--max-subjects", type=int)
     parser.add_argument("--max-folds", type=int, help="Smoke-test only; omit for the manuscript run.")
     parser.add_argument(
+        "--kernels",
+        nargs="+",
+        type=int,
+        default=list(DEFAULT_KERNELS),
+        help="Odd temporal kernel widths for MST-CNN streams (default: 7 9 11 13).",
+    )
+    parser.add_argument("--tmin", type=float, default=0.0, help="Epoch start in seconds relative to the cue.")
+    parser.add_argument("--tmax", type=float, default=4.0, help="Epoch end in seconds relative to the cue.")
+    parser.add_argument(
         "--refit-mode",
         choices=["none", "selected_epoch"],
         default="none",
@@ -458,19 +501,39 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_verified_dataset(data_dir, max_subjects=None):
+def load_verified_dataset(data_dir, max_subjects=None, tmin=0.0, tmax=4.0):
     """Load the verified four-class dataset once for one or many experiments."""
-    return base.PhysioNetStageDataset(
+    if tmax <= tmin:
+        raise ValueError(f"tmax must be greater than tmin; received {tmin}, {tmax}")
+    dataset = base.PhysioNetStageDataset(
         data_dir=data_dir,
         class_mode="mi4_rest",
         preprocess="bandpass_zscore",
         feature_mode="raw",
         channel_set="all",
-        tmin=0.0,
-        tmax=4.0,
+        tmin=tmin,
+        tmax=tmax,
         max_subjects=max_subjects,
         balance_classes=False,
     )
+    if max_subjects is None:
+        loaded_subjects = sorted(np.unique(dataset.subject_ids).astype(int).tolist())
+        expected_subjects = [
+            subject for subject in range(1, 110)
+            if subject not in base.PhysioNetStageDataset.EXCLUDED_SUBJECTS
+        ]
+        if loaded_subjects != expected_subjects:
+            missing = sorted(set(expected_subjects) - set(loaded_subjects))
+            extra = sorted(set(loaded_subjects) - set(expected_subjects))
+            raise RuntimeError(
+                f"Dataset integrity check failed: expected 103 subjects; loaded {len(loaded_subjects)}. "
+                f"Missing={missing}; extra={extra}. Check DATA_DIR and the EDF files."
+            )
+    if len(dataset.channel_names or []) != 64:
+        raise RuntimeError(f"Expected 64 EEG channels, found {len(dataset.channel_names or [])}.")
+    if not np.isclose(dataset.sampling_frequency_hz, 160.0):
+        raise RuntimeError(f"Expected 160 Hz EEG, found {dataset.sampling_frequency_hz} Hz.")
+    return dataset
 
 
 def run_experiment(args, dataset=None):
@@ -480,12 +543,22 @@ def run_experiment(args, dataset=None):
     device = torch.device(args.device if args.device != "auto" else ("cuda" if torch.cuda.is_available() else "cpu"))
     seed_everything(args.seed)
     if dataset is None:
-        dataset = load_verified_dataset(args.data_dir, args.max_subjects)
+        dataset = load_verified_dataset(args.data_dir, args.max_subjects, args.tmin, args.tmax)
+    if not np.isclose(dataset.tmin, args.tmin) or not np.isclose(dataset.tmax, args.tmax):
+        raise ValueError("The reused dataset epoch window does not match the experiment arguments.")
+    epoch_samples = int(dataset.samples[0].shape[-1])
     all_indices = np.arange(len(dataset))
     outer = GroupKFold(n_splits=args.outer_folds)
     folds = outer.split(all_indices, dataset.labels, groups=dataset.subject_ids)
-    profile_model = build_model(args.model, len(dataset.class_names), args.dropout, device)
-    compute = benchmark(profile_model, device)
+    profile_model = build_model(
+        args.model,
+        len(dataset.class_names),
+        args.dropout,
+        device,
+        kernels=args.kernels,
+        epoch_samples=epoch_samples,
+    )
+    compute = benchmark(profile_model, device, epoch_samples=epoch_samples)
     del profile_model
     if device.type == "cuda":
         torch.cuda.empty_cache()
@@ -518,13 +591,13 @@ def run_experiment(args, dataset=None):
         )
         if getattr(args, "refit_mode", "none") == "selected_epoch":
             del selected_model
-            model, outer_metrics, refit_curve, refit_weights = refit_and_test(
+            model, outer_metrics, refit_curve, refit_weights, y_true, y_pred = refit_and_test(
                 args, dataset, outer_train, outer_test, selected_epoch, device, fold_seed
             )
             outer_training_subjects = subject_list(dataset, outer_train)
         else:
             model = selected_model
-            outer_metrics, refit_weights = evaluate_selected_model(
+            outer_metrics, refit_weights, y_true, y_pred = evaluate_selected_model(
                 args, model, dataset, inner_train, outer_test, device
             )
             refit_curve = []
@@ -544,6 +617,12 @@ def run_experiment(args, dataset=None):
             "selection_history": history,
             "refit_train_loss": refit_curve,
             "outer_test": outer_metrics,
+            "outer_test_predictions": {
+                "sample_indices": np.asarray(outer_test).astype(int).tolist(),
+                "subject_ids": np.asarray(dataset.subject_ids)[outer_test].astype(int).tolist(),
+                "y_true": np.asarray(y_true).astype(int).tolist(),
+                "y_pred": np.asarray(y_pred).astype(int).tolist(),
+            },
             "selection_class_weights": selection_weights,
             "refit_class_weights": refit_weights,
         }
@@ -595,6 +674,14 @@ def run_experiment(args, dataset=None):
         "samples": len(dataset),
         "subjects": len(set(dataset.subject_ids.tolist())),
         "class_counts": dataset.class_counts(),
+        "epoch": {
+            "tmin_seconds": float(args.tmin),
+            "tmax_seconds": float(args.tmax),
+            "samples": epoch_samples,
+            "sampling_frequency_hz": float(getattr(dataset, "sampling_frequency_hz", 160.0)),
+        },
+        "kernels": [int(kernel) for kernel in args.kernels],
+        "preprocessing": getattr(dataset, "preprocessing_metadata", None),
         "compute": compute,
         "aggregate": aggregate(results, dataset.class_names),
         "folds": results,

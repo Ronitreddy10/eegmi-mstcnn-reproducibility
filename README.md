@@ -1,212 +1,159 @@
-# Nested subject-wise MST-CNN evaluation on PhysioNet EEGMMIDB
+# EEG MST-CNN reviewer experiment package
 
-Reproducibility package for four-class, inter-subject EEG motor-imagery decoding with a multi-scale temporal convolutional neural network (MST-CNN).
+This is the ready-to-upload Kaggle package for the manuscript reviewer experiments. It preserves the manuscript protocol and adds selectable temporal kernels, selectable cue-relative epoch windows, held-out prediction saving, subject-level statistics and plots, 10,000-resample subject bootstrap confidence intervals, expanded paired Wilcoxon tables with effect sizes, a matched CSP+LDA baseline, a physiology inclusion/rejection audit, receptive-field reporting, and an explicit FIR-filter record.
 
-This repository implements the corrected experimental protocol used in the revised manuscript: nested subject-wise evaluation, controlled model-capacity ablation, neural baseline comparisons, computational profiling, checkpoint-selection diagnostics, multiple random seeds for the 83.08 M reference model, and effective-number class-balanced training.
+No EEG files are included. Download the [PhysioNet EEG Motor Movement/Imagery Database version 1.0.0](https://physionet.org/content/eegmmidb/1.0.0/) and upload the EDF tree as a Kaggle dataset. The loader accepts a Kaggle dataset root with nested folders and indexes files named `S###R##.edf`. The required runs are 4, 6, 8, 10, 12, and 14 for every eligible subject; the program stops with a missing-subject report instead of silently running an incomplete manuscript cohort.
 
-The implemented cue-aligned epoch spans 0--4 s at 160 Hz. Because MNE includes both temporal endpoints, each epoch contains **641 samples** (`0.000, 0.00625, ..., 4.000 s`).
+For a complete independent-reproduction guide, including command-line download instructions, subject lists, fold assignments, saved predictions, confusion matrices, package versions, and GPU records, see [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md). The physiology cohort and trial-count supplement is in [`supplementary/`](supplementary/README.md).
 
-## What this repository establishes
+## Protocol that must remain fixed
 
-- The outer evaluation is one **10-fold subject-wise grouped cross-validation** procedure. It is not a separate subject-specific CV plus another 10-fold CV.
-- Within every outer-training partition, a grouped inner-validation subset selects the checkpoint by macro-F1.
-- The untouched outer-test subjects are evaluated once and are never used for early stopping or checkpoint selection.
-- Four MST-CNN capacities are compared at seed 42: 0.55 M, 4.96 M, 19.94 M, and 83.08 M parameters.
-- EEGNet, ShallowConvNet, DeepConvNet1D, and ResNet1D are evaluated on the same outer folds.
-- Parameters, MACs, FLOPs (`2 × MACs`), and batch-1 NVIDIA Tesla T4 inference latency are reported.
-- The 83.08 M reference model is replicated with seeds 42, 123, and 2026 using both unweighted and effective-number cross-entropy.
-- Accuracy, balanced accuracy, macro-F1, and per-class recall are retained for every outer fold.
-- Full inner-validation histories support best-checkpoint versus final-epoch diagnostics.
+- 103 eligible subjects: 1–109 except 43, 88, 89, 92, 100, and 104.
+- Four classes: rest, left-fist imagery, right-fist imagery, and both-feet imagery.
+- Outer evaluation: 10-fold `GroupKFold` by subject.
+- Inner validation: grouped 15% split from the outer-training subjects.
+- Selection: maximum inner-validation macro-F1.
+- The selected checkpoint is retained; there is no refit.
+- Maximum 60 epochs, early-stopping patience 8, batch size 64.
+- AdamW, learning rate `1e-4`, weight decay `1e-4`, dropout `0.5`.
+- Classifier preprocessing: 4–40 Hz zero-phase FIR before epoching, then per-epoch per-channel z-scoring.
+- Seed 42 for reviewer ablations.
 
-## Verified experiment scope
+The kernel and temporal-window studies use the practical 19.94M four-stream configuration as their base. Single- and fewer-stream models naturally have fewer parameters; the generated table reports parameters, FLOPs, and latency beside performance so scale count is not presented as a parameter-matched test.
 
-The completed analysis contains 13 experiment definitions and 130 outer-fold result files.
+## Kaggle steps
 
-| Analysis | Models / conditions | Seeds |
-|---|---|---|
-| Capacity ablation | MST-CNN 0.55 M, 4.96 M, 19.94 M, 83.08 M | 42 |
-| Neural baselines | EEGNet, ShallowConvNet, DeepConvNet1D, ResNet1D | 42 |
-| Seed robustness | MST-CNN 83.08 M, unweighted CE | 42, 123, 2026 |
-| Class-imbalance analysis | MST-CNN 83.08 M, effective-number CE | 42, 123, 2026 |
+1. Upload `eeg_mstcnn_reviewer_kaggle.zip` as a private Kaggle dataset, or upload it directly to a notebook session.
+2. Create a Kaggle notebook, attach the package and an EEGMMIDB dataset containing all required EDF files, and enable a GPU accelerator.
+3. In the first cell, locate and extract the package:
 
-The 19.94 M result is a seed-42 capacity finding. It is not presented as a three-seed or class-balanced result.
+```python
+from pathlib import Path
+import zipfile
 
-### Exact capacity controls
+package_zip = next(Path("/kaggle/input").rglob("eeg_mstcnn_reviewer_kaggle.zip"))
+package_dir = Path("/kaggle/working/eeg_mstcnn_reviewer_kaggle")
+with zipfile.ZipFile(package_zip) as archive:
+    archive.extractall(package_dir)
+print(package_dir)
+```
 
-The capacity ablation uses compound width/pooling variants of the same four-stream MST-CNN design. It is **not** a classifier-only ablation.
+4. Install the pinned-compatible dependencies (Kaggle usually already has most of them):
 
-| Variant | Stream maximum channels | Stream output channels | Adaptive-pool length | Classifier hidden width | Exact parameters |
-|---|---:|---:|---:|---:|---:|
-| 0.55 M | 48 | 24 | 12 | 128 | 551,144 |
-| 4.96 M | 128 | 48 | 32 | 450 | 4,956,614 |
-| 19.94 M | 192 | 64 | 48 | 1,250 | 19,936,294 |
-| 83.08 M | 256 | 64 | 48 | 6,146 | 83,080,458 |
+```python
+!pip install -q -r {package_dir}/requirements.txt
+```
 
-Kernel sizes, the four-stream topology, two ConvBlocks per stream, adaptive pooling, feature fusion, dropout, and the four-class output remain common. The controlled channel widths, pooled feature dimension, and classifier width determine the capacity points.
+5. Set `DATA_DIR` to the attached EEGMMIDB dataset root. It may contain nested subject directories:
 
-## Key checked results
+```python
+DATA_DIR = "/kaggle/input/YOUR-EEGMMIDB-DATASET"
+```
 
-At seed 42, the 19.94 M MST-CNN reached `70.23 ± 1.72%` accuracy, `58.27 ± 2.18%` balanced accuracy, and `59.68 ± 2.02%` macro-F1 over the 10 outer folds. Its performance was statistically comparable with the 83.08 M configuration while using 76.0% fewer parameters, 40.4% fewer FLOPs, and 30.1% lower measured batch-1 latency.
+6. Run one stage. Start with the kernel experiment because it directly tests the paper's multi-scale claim:
 
-Across the three 83.08 M seeds, effective-number weighting improved balanced accuracy by 0.98 percentage points and increased recall for left-fist, right-fist, and both-feet imagery, while raw accuracy decreased by 2.09 points. See [`analysis_outputs/`](analysis_outputs/) for the checked aggregate tables, paired statistics, per-class recall, computational-cost rows, and checkpoint diagnostics.
+```python
+!python {package_dir}/kaggle_entrypoint.py \
+  --data-dir "{DATA_DIR}" \
+  --stage kernels \
+  --max-wall-hours 11
+```
 
-## Repository layout
+7. Download `/kaggle/working/eeg_mstcnn_reviewer_results_checkpoint.zip` after every session. For a new session, attach that ZIP and resume with the same command plus:
 
 ```text
-.
-├── README.md
-├── METHOD_PROTOCOL.md
-├── CITATION.cff
-├── requirements.txt
-├── kaggle_reviewer_safe_13.ipynb
-├── configs/
-│   ├── reviewer_safe_13.json
-│   ├── full_multiseed.json
-│   └── stage1_single_seed.json
-├── src/
-│   ├── eeg_stage_ablation.py
-│   ├── run_robustness_study.py
-│   ├── run_complete_batch.py
-│   ├── run_grid.py
-│   ├── summarize_grid.py
-│   ├── analyze_results.py
-│   ├── analyze_training_diagnostics.py
-│   ├── generate_confusion_figures.py
-│   └── eeg_journal_analysis.py
-├── tests/
-│   └── smoke_test.py
-└── analysis_outputs/
-    ├── reviewer_safe_13_results_export.zip
-    ├── supplementary_figure_s2_capacity_cost.png
-    ├── class_recall_diagnostic.png
-    ├── figure_s1_training_diagnostics.png
-    ├── figure4_reference_83m_aggregate_confusion.png
-    ├── figure5_reference_83m_per_fold_confusions.png
-    └── physiology/
-        ├── signal_analysis_summary.json
-        ├── roi_omnibus_statistics.csv
-        ├── roi_pairwise_statistics.csv
-        ├── channel_contrast_statistics.csv
-        ├── bandpower_top_electrodes.csv
-        ├── class_waveforms_motor_channels.png
-        ├── motor_roi_bandpower.png
-        ├── bandpower_class_topographies.png
-        └── bandpower_contrast_topographies.png
+--resume-archive /kaggle/input/YOUR-CHECKPOINT-DATASET/eeg_mstcnn_reviewer_results_checkpoint.zip
 ```
 
-## Dataset
+Completed folds and experiments are skipped. A fold is never stopped mid-write.
 
-The code uses the [PhysioNet EEG Motor Movement/Imagery Database (EEGMMIDB)](https://physionet.org/content/eegmmidb/). The EEG recordings are not redistributed in this repository. Users must obtain the dataset from PhysioNet and comply with the terms stated on the dataset page.
+8. Run the remaining stages in this order:
 
-The corrected analysis retains 103 subjects after applying the manuscript's epoch-integrity criteria and uses rest, left-fist imagery, right-fist imagery, and both-feet imagery.
+```python
+!python {package_dir}/kaggle_entrypoint.py --data-dir "{DATA_DIR}" --stage windows --max-wall-hours 11 --resume-archive "/kaggle/input/YOUR-CHECKPOINT-DATASET/eeg_mstcnn_reviewer_results_checkpoint.zip"
 
-## Kaggle reproduction
+!python {package_dir}/kaggle_entrypoint.py --data-dir "{DATA_DIR}" --stage baselines --max-wall-hours 11 --resume-archive "/kaggle/input/YOUR-CHECKPOINT-DATASET/eeg_mstcnn_reviewer_results_checkpoint.zip"
 
-The easiest reproduction route is [`kaggle_reviewer_safe_13.ipynb`](kaggle_reviewer_safe_13.ipynb).
-
-1. Create a Kaggle notebook and import the supplied notebook file.
-2. Attach the public PhysioNet EEG Motor Movement/Imagery dataset containing the EDF files.
-3. Enable an NVIDIA GPU.
-4. Keep Internet enabled so the notebook can clone this public repository, or attach the repository files as a Kaggle dataset.
-5. Run all cells.
-6. Download `reviewer_safe_13_results_export.zip` from `/kaggle/working`.
-7. If a session reaches its wall-time boundary, attach the exported ZIP to the next session and run the notebook again. Completed folds are detected and skipped.
-
-The reviewer grid is defined in [`configs/reviewer_safe_13.json`](configs/reviewer_safe_13.json). Do not change the outer folds, epochs, patience, batch size, or refit mode when reproducing the reported manuscript run.
-
-## Local setup
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+!python {package_dir}/kaggle_entrypoint.py --data-dir "{DATA_DIR}" --stage physiology --max-wall-hours 11 --resume-archive "/kaggle/input/YOUR-CHECKPOINT-DATASET/eeg_mstcnn_reviewer_results_checkpoint.zip"
 ```
 
-Run the structural smoke test:
+The `baselines` stage runs EEGNet, ShallowConvNet, DeepConvNet1D, ResNet1D, and CSP+LDA. The classical baseline uses the same 103 subjects, four classes, 4–40 Hz preprocessing, 0–4 s epochs, and outer subject folds; it never uses trial-randomized validation.
+
+After the neural reviewer experiments are complete, `--stage remaining-cpu`
+runs only the outstanding CSP+LDA baseline and physiology audit, then refreshes
+the final statistical tables. It does not train or rerun a neural network and
+does not require a GPU.
+
+If the Kaggle runtime is long enough, `--stage all` runs the core stages in one invocation. Three additional scale controls (`9+11`, `11+13`, and `7+13`) are available through `--stage optional-kernels` after the core reviewer grid.
+
+## Required experiment grid
+
+The core grid is in `configs/reviewer_experiments.json`:
+
+- Kernels: `7`, `9`, `11`, `13`, `7+9`, `7+9+11`, `7+9+11+13`.
+- Windows: `0–2 s`, `0–3 s`, `0–4 s` (the full-kernel reference above), and `1–4 s`.
+- Neural baselines: four existing manuscript baselines under their existing effective-number CE setting.
+- Classical baseline: CSP with 8 components and LDA, fitted inside each outer training fold.
+
+## Generated results
+
+The checkpoint contains:
+
+```text
+eeg_mstcnn_reviewer_results/
+├── RUN_STATUS.json
+├── run_environment.json
+├── experiments/
+│   └── <experiment>/
+│       ├── fold_01.json ... fold_10.json
+│       └── summary.json
+├── analysis/
+│   ├── experiment_performance_summary.csv
+│   ├── all_subject_metrics.csv
+│   ├── subject_distribution_summary.csv
+│   ├── subject_bootstrap_95ci.csv
+│   ├── expanded_wilcoxon_effect_sizes.csv
+│   ├── fold_assignments.csv
+│   ├── fold_level_predictions.csv
+│   ├── fold_confusion_matrices.csv
+│   ├── aggregate_confusion_matrices.csv
+│   ├── subject_distribution_<experiment>.png
+│   ├── receptive_field.csv
+│   └── receptive_field.json
+└── physiology/
+    ├── physiology_subject_audit.csv
+    ├── signal_analysis_summary.json
+    └── figures and physiology statistics
+```
+
+Each neural and CSP fold file retains untouched outer-test `sample_indices`, `subject_ids`, `y_true`, and `y_pred`. Confidence intervals use 10,000 percentile bootstrap resamples of whole subject prediction blocks with seed 42. The paired model-comparison table aligns the same held-out subjects and reports mean and median differences, a bootstrap 95% CI for the mean difference, paired rank-biserial correlation, raw Wilcoxon p, and Holm-adjusted p.
+
+The physiology audit reports all 103 classification-eligible subjects, trial rejection counts by class under the 300 µV peak-to-peak rule, why any subject lacks a complete four-class physiology record, which class triggered exclusion, and whether retained trial counts are equal across classes.
+
+Completed reviewer outputs are committed under [`results/reviewer_2026/`](results/reviewer_2026/README.md). These exports let readers inspect the exact fold assignments, predictions, confusion matrices, subject-level metrics, bootstrap intervals, and paired statistical tables without rerunning training.
+
+## Local structural checks
+
+These checks use synthetic tensors and do not create manuscript performance results:
 
 ```bash
 python tests/smoke_test.py
+python src/eeg_journal_analysis.py --synthetic_smoke --output_dir /tmp/physiology_smoke
 ```
 
-Run a configured experiment grid:
+To verify parsing without training, use:
 
 ```bash
-python src/run_grid.py \
-  --grid configs/reviewer_safe_13.json \
-  --data-dir /path/to/eegmmidb \
-  --output-root robustness_results
+python kaggle_entrypoint.py --help
+python src/run_robustness_study.py --help
+python src/run_csp_lda.py --help
 ```
 
-Aggregate completed jobs:
+## Interpretation safeguards
 
-```bash
-python src/summarize_grid.py --results robustness_results
-```
-
-Regenerate the checked manuscript statistics and figures directly from the completed export:
-
-```bash
-python src/analyze_results.py \
-  --archive analysis_outputs/reviewer_safe_13_results_export.zip \
-  --output-dir reproduced_analysis
-
-python src/analyze_training_diagnostics.py \
-  --archive analysis_outputs/reviewer_safe_13_results_export.zip \
-  --output-dir reproduced_analysis
-
-python src/generate_confusion_figures.py \
-  --archive analysis_outputs/reviewer_safe_13_results_export.zip \
-  --output-dir reproduced_analysis
-```
-
-Regenerate the independent neurophysiological analysis used for manuscript Figures 6--8 and Tables 9--10:
-
-```bash
-python src/eeg_journal_analysis.py \
-  --data_dir /path/to/eegmmidb \
-  --output_dir reproduced_physiology \
-  --reject_uv 300
-```
-
-This branch uses average re-referencing, 4--40 Hz filtering, a 300 µV peak-to-peak rejection criterion, Welch mu/beta band-power estimation, subject-level aggregation, Friedman tests, paired Wilcoxon tests with Holm correction, and electrode-level standardized effects. It is independent of classifier training.
-
-## Corrected checkpoint protocol
-
-For every outer fold:
-
-1. Reserve the outer-test subjects.
-2. Split the remaining subjects into grouped inner-training and inner-validation sets.
-3. Select the epoch using only inner-validation macro-F1.
-4. Preserve that checkpoint without refitting.
-5. Evaluate the untouched outer-test subjects once.
-
-Every fold stores subject IDs, random seed, loss condition, class weights, selected epoch, full inner-validation history, best and final inner-validation metrics, outer-test metrics, computational costs, and per-class recall.
-
-## Result files
-
-- `experiment_summary.csv`: fold-aggregated metrics and computational costs by experiment and seed.
-- `multiseed_summary.csv`: three-seed summaries for the 83.08 M loss conditions.
-- `per_class_recall.csv`: class-wise recall used for the imbalance analysis.
-- `performance_rows.csv`: checked manuscript table rows.
-- `manuscript_results.json`: consolidated numerical results and paired tests.
-- `training_diagnostics_summary.json`: best-checkpoint versus final-epoch diagnostics.
-- `supplementary_figure_s2_capacity_cost.png`: Supplementary Figure S2, the capacity-performance and computational-cost comparison.
-- `class_recall_diagnostic.png`: supporting three-seed per-class recall diagnostic; it is not manuscript Figure 5.
-- `figure_s1_training_diagnostics.png`: checkpoint-selection curves and epoch distributions.
-- `figure4_reference_83m_aggregate_confusion.png`: manuscript Figure 4.
-- `figure5_reference_83m_per_fold_confusions.png`: manuscript Figure 5.
-- `reviewer_safe_13_results_export.zip`: the checked 13-experiment, 130-fold Kaggle result archive used to regenerate the statistics and figures.
-
-[`analysis_outputs/README.md`](analysis_outputs/README.md) records the completed archive checksum, fold counts, validation checks, and the provenance of the committed outputs.
-
-## Methodological record
-
-[`METHOD_PROTOCOL.md`](METHOD_PROTOCOL.md) gives the concise protocol that should be cited when describing the corrected evaluation. It also records the distinction between the seed-42 capacity study and the three-seed 83.08 M robustness study.
-
-## Citation
-
-Citation metadata are provided in [`CITATION.cff`](CITATION.cff). The manuscript citation and DOI should replace the repository-only citation after publication.
-
-## Data and licensing note
-
-The PhysioNet dataset is governed by its own terms and is not included here. No separate reuse licence has yet been assigned to the source code; public visibility of this repository does not change the authors' copyright.
+- Treat subject-disjoint out-of-fold predictions as the primary evaluation unit.
+- Fold-level summaries are descriptive because outer training sets overlap.
+- Report effect sizes and confidence intervals beside Wilcoxon p-values.
+- Do not call the four-stream ablation parameter matched unless a separate capacity-matched design is run.
+- Receptive-field results describe the convolutional pathway before adaptive pooling. They do not establish a physiological mechanism by themselves.
+- Batch-1 latency is computational inference latency only; it does not establish end-to-end online BCI performance.

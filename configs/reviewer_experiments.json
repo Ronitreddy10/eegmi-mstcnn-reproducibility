@@ -1,0 +1,16 @@
+[
+  {"name": "kernel_k7", "stage": "kernels", "model": "mstcnn_20m", "imbalance": "none", "seed": 42, "kernels": [7], "tmin": 0.0, "tmax": 4.0},
+  {"name": "kernel_k9", "stage": "kernels", "model": "mstcnn_20m", "imbalance": "none", "seed": 42, "kernels": [9], "tmin": 0.0, "tmax": 4.0},
+  {"name": "kernel_k11", "stage": "kernels", "model": "mstcnn_20m", "imbalance": "none", "seed": 42, "kernels": [11], "tmin": 0.0, "tmax": 4.0},
+  {"name": "kernel_k13", "stage": "kernels", "model": "mstcnn_20m", "imbalance": "none", "seed": 42, "kernels": [13], "tmin": 0.0, "tmax": 4.0},
+  {"name": "kernel_k7_9", "stage": "kernels", "model": "mstcnn_20m", "imbalance": "none", "seed": 42, "kernels": [7, 9], "tmin": 0.0, "tmax": 4.0},
+  {"name": "kernel_k7_9_11", "stage": "kernels", "model": "mstcnn_20m", "imbalance": "none", "seed": 42, "kernels": [7, 9, 11], "tmin": 0.0, "tmax": 4.0},
+  {"name": "kernel_k7_9_11_13", "stage": "kernels", "model": "mstcnn_20m", "imbalance": "none", "seed": 42, "kernels": [7, 9, 11, 13], "tmin": 0.0, "tmax": 4.0},
+  {"name": "baseline_eegnet", "stage": "baselines", "model": "eegnet", "imbalance": "effective_ce", "seed": 42, "kernels": [7, 9, 11, 13], "tmin": 0.0, "tmax": 4.0},
+  {"name": "baseline_shallowconvnet", "stage": "baselines", "model": "shallowconvnet", "imbalance": "effective_ce", "seed": 42, "kernels": [7, 9, 11, 13], "tmin": 0.0, "tmax": 4.0},
+  {"name": "baseline_deepconvnet1d", "stage": "baselines", "model": "deepconvnet1d", "imbalance": "effective_ce", "seed": 42, "kernels": [7, 9, 11, 13], "tmin": 0.0, "tmax": 4.0},
+  {"name": "baseline_resnet1d", "stage": "baselines", "model": "resnet1d", "imbalance": "effective_ce", "seed": 42, "kernels": [7, 9, 11, 13], "tmin": 0.0, "tmax": 4.0},
+  {"name": "window_0_2", "stage": "windows", "model": "mstcnn_20m", "imbalance": "none", "seed": 42, "kernels": [7, 9, 11, 13], "tmin": 0.0, "tmax": 2.0},
+  {"name": "window_0_3", "stage": "windows", "model": "mstcnn_20m", "imbalance": "none", "seed": 42, "kernels": [7, 9, 11, 13], "tmin": 0.0, "tmax": 3.0},
+  {"name": "window_1_4", "stage": "windows", "model": "mstcnn_20m", "imbalance": "none", "seed": 42, "kernels": [7, 9, 11, 13], "tmin": 1.0, "tmax": 4.0}
+]
